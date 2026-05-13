@@ -1,0 +1,9 @@
+{
+  "name": "pi-code-review",
+  "version": "0.1.0",
+  "description": "A pi skill for automated code review workflow using pi itself",
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["./skills"]
+  }
+}
