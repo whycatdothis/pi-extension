@@ -11,19 +11,30 @@ Iteratively review uncommitted code changes using pi itself as the reviewer.
 
 ### Phase 1: Launch pi in tmux
 
-Start a detached tmux session named `pi-review` running pi in the project root:
+Generate a unique session name based on the current git branch and the files that changed. This avoids collisions across multiple review runs.
 
 ```bash
-tmux new-session -d -s pi-review -c "$PROJECT_ROOT" 'pi'
+# Derive a short, unique session name
+BRANCH=$(git branch --show-current | sed 's/[^a-zA-Z0-9_-]/-/g' | cut -c1-20)
+CHANGED=$(git diff --name-only HEAD 2>/dev/null; git diff --name-only --cached 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null | head -5 | sed 's/[^a-zA-Z0-9_-]/-/g' | tr '\n' '-' | cut -c1-30)
+SESSION="rv-${BRANCH}-${CHANGED}"
+
+# Ensure name ≤ 50 chars and ends with alphanumeric
+SESSION=$(echo "$SESSION" | cut -c1-50 | sed 's/-*$//')
+
+# Fallback if empty
+SESSION="${SESSION:-rv-review}"
+
+tmux new-session -d -s "$SESSION" -c "$PROJECT_ROOT" 'pi'
+echo "Review session: $SESSION"
 ```
 
-Where `$PROJECT_ROOT` is the root of the git repo being reviewed.
-
-If a `pi-review` session already exists, kill it first:
+- If a session with the same name already exists, kill it first:
 
 ```bash
-tmux kill-session -t pi-review 2>/dev/null
-tmux new-session -d -s pi-review -c "$PROJECT_ROOT" 'pi'
+tmux kill-session -t "$SESSION" 2>/dev/null
+sleep 0.5
+tmux new-session -d -s "$SESSION" -c "$PROJECT_ROOT" 'pi'
 ```
 
 ### Phase 2: Send review prompt
@@ -66,22 +77,17 @@ After reviewing, explicitly state one of:
 Send the prompt:
 
 ```bash
-tmux send-keys -t pi-review "$REVIEW_PROMPT" Enter
+tmux send-keys -t "$SESSION" "$REVIEW_PROMPT" Enter
 ```
+
+> **Important:** Use the actual session name from Phase 1, not a hardcoded string.
 
 ### Phase 3: Wait and capture output
 
-Wait for pi to finish processing (this may take several turns as pi runs git commands). Monitor by checking if pi is still running:
+Wait for pi to finish processing (this may take several turns as pi runs git commands). Capture output after giving pi enough time:
 
 ```bash
-# Wait for pi to finish (check if tmux pane is still alive)
-while tmux has-session -t pi-review 2>/dev/null; do sleep 5; done
-```
-
-Or, more practically, capture output after giving pi enough time:
-
-```bash
-tmux capture-pane -t pi-review -p -S - > /tmp/pi-review-output.txt
+tmux capture-pane -t "$SESSION" -p -S - > /tmp/pi-review-output.txt
 ```
 
 ### Phase 4: Parse and filter feedback
@@ -114,7 +120,7 @@ After fixing meaningful issues:
 Send follow-up:
 
 ```bash
-tmux send-keys -t pi-review "I've applied your suggested fixes. Please re-review the current state. Focus on any remaining issues you flagged as unresolved." Enter
+tmux send-keys -t "$SESSION" "I've applied your suggested fixes. Please re-review the current state. Focus on any remaining issues you flagged as unresolved." Enter
 ```
 
 ### Phase 7: Summary
@@ -146,21 +152,3 @@ After the review cycle completes, produce a summary:
 6. **Keep the review focused** — if pi goes off-track, redirect with a focused prompt
 7. **Stop when meaningful issues are exhausted** — don't chase nits indefinitely
 
-## Scripts
-
-Helper script to launch the review session:
-
-```bash
-# scripts/start-review.sh
-#!/bin/bash
-PROJECT_ROOT="${1:-$(pwd)}"
-SESSION="pi-review"
-
-# Kill existing session
-tmux kill-session -t "$SESSION" 2>/dev/null
-sleep 1
-
-# Start pi in new session
-tmux new-session -d -s "$SESSION" -c "$PROJECT_ROOT" 'pi'
-echo "pi-review session started in $PROJECT_ROOT"
-```
