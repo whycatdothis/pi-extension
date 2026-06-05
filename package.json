@@ -5,5 +5,12 @@
   "keywords": ["pi-package"],
   "pi": {
     "skills": ["./skills"]
+  },
+  "dependencies": {
+    "diff": "^9.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.78.0",
+    "@earendil-works/pi-coding-agent": "^0.78.0"
   }
 }
