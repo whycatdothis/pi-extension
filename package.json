@@ -4,6 +4,7 @@
   "description": "A pi skill for automated code review workflow using pi itself",
   "keywords": ["pi-package"],
   "pi": {
+    "extensions": ["./extensions"],
     "skills": ["./skills"]
   },
   "dependencies": {
