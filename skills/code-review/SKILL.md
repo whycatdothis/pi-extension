@@ -15,21 +15,36 @@ description: "用于对当前未合并 workspace changes、指定 GitHub Pull Re
 
 ## Execution via pi -p
 
-本 skill 的核心执行方式是通过 `pi -p` 启动一个独立的 pi agent 作为 reviewer。主 agent 负责：
+本 skill 的核心执行方式是通过 `pi -p` 在新 session 中启动一个独立的 pi agent 作为 reviewer。
+
+**必须新开 session**：每次 review 都必须启动一个全新的 `pi -p` 进程，不要复用当前 session 或已有 session。
+
+**超时设置**：`pi -p` 执行时设置 10 分钟（600 秒）超时，review 可能需要较长时间完成。
+
+主 agent 负责：
 
 1. 确定 review mode 和 scope
-2. 构造完整的 review prompt（包含本文档中的全部 review 哲学和方法）
-3. 通过 `pi -p "<prompt>"` 在当前项目目录下启动 reviewer agent
+2. 构造简短的 review prompt，指示 reviewer agent 读取本 skill 文件获取完整方法论
+3. 通过 `pi -p` 在当前项目目录下启动 reviewer agent（设置 600s 超时）
 4. 等待 reviewer agent 完成并生成 review artifact
 5. 向用户报告结论和输出路径
 
+### Prompt 构造规则
+
+**不要**在 prompt 中重复本文档的 review 哲学、method、requirements 等内容。Prompt 只需要：
+- 告诉 reviewer agent 读取本 skill 文件的绝对路径
+- 指定 review mode 和具体 scope（base ref、PR number 等）
+- 指定在哪个目录执行
+
 ```bash
-# 启动 reviewer agent
-cd <project_root>
-pi -p "<完整 review prompt，包含 scope、method、requirements、output format>"
+# 获取本 skill 文件的绝对路径
+SKILL_PATH="$(pi package path github.com/mingxinwei/pi-extension)/skills/code-review/SKILL.md"
+
+# 启动 reviewer agent（600s 超时）
+pi -p "你是一个独立的 code reviewer agent。请先读取 ${SKILL_PATH} 获取完整的 review 方法论、要求和输出格式。然后按照其中的 [Current Changes Mode / PR Review Mode / All Repository Mode] 对当前项目执行 review。Scope: [具体 scope 描述，如 --base main / --pr 123 / --all]。完成后将 review artifact 写入 docs/reviews/ 目录。" 2>&1
 ```
 
-构造 prompt 时，必须把下面「Review Method」「Adversarial Attack Surface」「Review Requirements」「Review Artifact Format」的完整内容嵌入 prompt，确保 reviewer agent 拥有全部 review 哲学。不要缩减、概括或省略任何 review 要求。
+如果 `pi package path` 不可用，直接使用已知路径：`~/.pi/agent/git/github.com/mingxinwei/pi-extension/skills/code-review/SKILL.md`
 
 ## Invocation Handling
 
