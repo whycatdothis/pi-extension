@@ -37,14 +37,17 @@ description: "用于对当前未合并 workspace changes、指定 GitHub Pull Re
 - 指定在哪个目录执行
 
 ```bash
-# 获取本 skill 文件的绝对路径
-SKILL_PATH="$(pi package path github.com/mingxinwei/pi-extension)/skills/code-review/SKILL.md"
+# 推断本 skill 文件的绝对路径：
+# 当主 agent 加载此 skill 时，已知此文件的路径（即当前正在读取的文件）。
+# 将该绝对路径记为 SKILL_PATH，传给 reviewer agent。
+# 例如：如果主 agent 从 /Users/foo/.pi/agent/git/github.com/whycatdothis/pi-extension/skills/code-review/SKILL.md 读取了此文件，
+# 那么 SKILL_PATH 就是那个路径。
 
 # 启动 reviewer agent（600s 超时）
-pi -p "你是一个独立的 code reviewer agent。请先读取 ${SKILL_PATH} 获取完整的 review 方法论、要求和输出格式。然后按照其中的 [Current Changes Mode / PR Review Mode / All Repository Mode] 对当前项目执行 review。Scope: [具体 scope 描述，如 --base main / --pr 123 / --all]。完成后将 review artifact 写入 docs/reviews/ 目录。" 2>&1
+pi -p "你是一个独立的 code reviewer agent。请先用 read 工具读取 ${SKILL_PATH} 获取完整的 review 方法论、要求和输出格式。然后按照其中的 [Current Changes Mode / PR Review Mode / All Repository Mode] 对当前项目执行 review。Scope: [具体 scope 描述，如 --base main / --pr 123 / --all]。完成后将 review artifact 写入 docs/reviews/ 目录。" 2>&1
 ```
 
-如果 `pi package path` 不可用，直接使用已知路径：`~/.pi/agent/git/github.com/mingxinwei/pi-extension/skills/code-review/SKILL.md`
+**如何确定 SKILL_PATH**：主 agent 在加载此 skill 时已经知道此文件的绝对路径（即 skill 的 `location` 字段）。直接使用该路径作为 `SKILL_PATH` 传给 `pi -p` 的 prompt。不要硬编码任何用户名或安装目录。
 
 ## Invocation Handling
 
