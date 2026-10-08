@@ -31,8 +31,10 @@
  *   /autocompact tokens 150000
  *
  * Compaction happens when an agent run has fully finished (pi's agent_settled
- * event), so a run in flight is never interrupted. A session that is still over
- * the limit right after a compaction waits for the next run, and at least
+ * event), so a run in flight is never interrupted. Opening a session or switching
+ * models never compacts by itself, even when already over the limit: the check
+ * waits until the next run finishes. A session that is still over the limit right
+ * after a compaction waits for the next run, and at least
  * MIN_TURNS_BETWEEN_COMPACTIONS turns, before it is compacted again.
  *
  * Print/JSON (headless) runs are skipped: pi exits right after the prompt.
@@ -167,7 +169,7 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 		return true;
 	};
 
-	const maybeCompact = (ctx: ExtensionContext, origin: string): void => {
+	const maybeCompact = (ctx: ExtensionContext): void => {
 		const config = resolveConfig(ctx);
 		const usage = ctx.getContextUsage();
 		const tokens = usage?.tokens ?? null;
@@ -191,18 +193,13 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 		compactingSince = Date.now();
 		if (ctx.hasUI) {
 			ctx.ui.notify(
-				`Auto-compact (${origin}): ${formatTokens(tokens)} tokens ≥ ${formatTokens(limit.limit)} (${limit.label})`,
+				`Auto-compact: ${formatTokens(tokens)} tokens ≥ ${formatTokens(limit.limit)} (${limit.label})`,
 				"info",
 			);
 		}
 
 		ctx.compact({
-			onComplete: (result) => {
-				clearCompacting();
-				if (!ctx.hasUI) return;
-				const after = result.estimatedTokensAfter ? ` → ${formatTokens(result.estimatedTokensAfter)}` : "";
-				ctx.ui.notify(`Auto-compact done: ${formatTokens(result.tokensBefore)}${after} tokens`, "info");
-			},
+			onComplete: clearCompacting,
 			onError: (error) => {
 				clearCompacting();
 				armed = true;
@@ -235,12 +232,12 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 	// Events
 	// -------------------------------------------------------------------------
 
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", () => {
+		// No compaction here: a resumed session over the limit is compacted after its next run.
 		clearCompacting();
 		armed = true;
 		turnsSinceCompaction = Number.POSITIVE_INFINITY;
 		retryBlockedUntil = 0;
-		maybeCompact(ctx, "session start");
 	});
 
 	pi.on("turn_end", () => {
@@ -249,13 +246,12 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("agent_settled", (_event, ctx) => {
-		maybeCompact(ctx, "agent end");
+		maybeCompact(ctx);
 	});
 
-	pi.on("model_select", (_event, ctx) => {
-		// The effective percent limit changed with the model's context window.
+	pi.on("model_select", () => {
+		// The percent limit changed with the context window; re-check after the next run.
 		armed = true;
-		maybeCompact(ctx, "model change");
 	});
 
 	pi.on("session_before_compact", () => {
@@ -265,7 +261,7 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 
 	pi.on("session_compact", () => {
 		// Fires for *any* compaction (manual, threshold, overflow, other extensions),
-		// so this only fixes up our own state — the "done" notice comes from onComplete.
+		// so this only fixes up our own state.
 		clearCompacting();
 		armed = true;
 		turnsSinceCompaction = 0;
