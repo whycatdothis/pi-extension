@@ -191,12 +191,6 @@ export default function autoCompactExtension(pi: ExtensionAPI): void {
 		armed = false;
 		turnsSinceCompaction = 0;
 		compactingSince = Date.now();
-		if (ctx.hasUI) {
-			ctx.ui.notify(
-				`Auto-compact: ${formatTokens(tokens)} tokens ≥ ${formatTokens(limit.limit)} (${limit.label})`,
-				"info",
-			);
-		}
 
 		ctx.compact({
 			onComplete: clearCompacting,
